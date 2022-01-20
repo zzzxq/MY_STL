@@ -183,8 +183,8 @@ __default_alloc_template<threads, inst>::free_list[_NFREELISTS] =
 {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, };
 
 
-typedef __default_alloc_template<true, 0> alloc;
-typedef __default_alloc_template<false, 0> single_client_alloc;
+typedef __default_alloc_template<true, 0> _alloc;
+typedef __default_alloc_template<false, 0> _single_client_alloc;
 
 //当free_list没有可用区块，调用refill，重新填充空间
 //新的空间取自内存池(通过chunk_alloc完成)
