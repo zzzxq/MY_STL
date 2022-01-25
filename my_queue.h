@@ -29,4 +29,32 @@ public:
 
 };
 
+template <class T, class Sequence = vector<T>,
+         class Compare = less<typename Sequence::value_type> >
+class priority_queue {
+public:
+    typedef typename Sequence::value_type   value_type;
+    typedef typename Sequence::size_type    size_type;
+    typedef typename Sequence::reference    reference;
+    typedef typename Sequence::const_reference const_reference;
+protected:
+    Sequence vec;
+    Compare  cmp;
+public:
+    priority_queue() : vec() {}
+    explicit priority_queue(const Compare& cmp) : vec(), cmp(cmp) {}
+
+public:
+    bool empty() {return vec.empty();}
+    size_type size() const {return vec.size();}
+    const_reference top() {return vec.front();}
+    void push(const value_type& x) {
+        vec.push_back(x); 
+        push_heap(vec.begin(), vec.end(), cmp);
+    }
+    void pop() {
+        pop_heap(vec.begin(), vec.end(), cmp);
+        vec.pop_back();
+    }
+};
 #endif
