@@ -43,7 +43,28 @@ int main() {
 
 END(shared_ptr_test)
 
+
+BEGIN(my_pair)
+
+#include"./my_pair.h"
+
 int main() {
-    shared_ptr_test::main();
+    pair<int, char> a(3, 'c');
+    printf("%d %c\n", a.first, a.second);
+    pair<int, char> b = make_pair(3, 'd');
+    if (a < b) {
+        printf("1111\n");
+    } else {
+        printf("2222\n");
+    }
+    return 0;
+}
+
+
+END(my_pair)
+
+int main() {
+    //shared_ptr_test::main();
+    my_pair::main();
     return 0;
 }
