@@ -1,0 +1,584 @@
+/*************************************************************************
+	> File Name: my_rbtree.h
+	> Author: zxq
+	> Mail: 1459190705@qq.com
+	> Created Time: Wed 02 Feb 2022 01:17:01 AM CST
+ ************************************************************************/
+
+#ifndef _MY_RBTREE_H
+#define _MY_RBTREE_H
+#include "my_pair.h"
+#include "my_vector.h"
+#include "my_function.h"
+
+//红黑树的节点定义
+template<class Value>
+struct TreeNode {
+    typedef  Value              value_type;
+    typedef  unsigned int       color_type;  //0 红, 1 黑, 2 双重黑
+    typedef  TreeNode<Value>*   link_type;
+    value_type     value;
+    color_type     color;
+    link_type      lchild;
+    link_type      rchild;
+    TreeNode(const value_type& x, color_type c = 0, link_type l = nullptr, link_type r = nullptr)
+        : value(x), color(c), lchild(l), rchild(r) {}
+};
+
+//分配器
+template<class TP, class Alloc = alloc>
+class RB_Tree_Alloc {
+public:
+    typedef Alloc          node_allocator;
+    typedef TreeNode<TP>*  pointer;
+protected:
+    pointer get_node() {
+        void *result = node_allocator::allocate(sizeof(TP));
+        return static_cast<pointer>(result);
+    }
+    void put_node(pointer x) {
+        node_allocator::deallocate(x, sizeof(TP));
+        return ;
+    }
+};
+
+template<class Key, class Value, class ExtractKey , class EqualKey ,class Alloc> class RB_Tree;
+//迭代器的实现
+//包括*,->，以及最重要的++,--
+//因为使用了 NIL，不能使用parent指针，使得++,--找父节点存在困难
+template <class Key, class Value,
+            class ExtractKey, class EqualKey,class Alloc>
+struct RB_Tree_iterator {           
+    typedef RB_Tree<Key, Value, ExtractKey, EqualKey, Alloc>
+        _M_rbtree;
+    typedef RB_Tree_iterator<Key,Value, ExtractKey, EqualKey, Alloc>
+        iterator;
+     
+    typedef forward_iterator_tag                     iterator_category;
+    typedef typename _M_rbtree::value_type           value_type;
+    typedef typename _M_rbtree::pointer              pointer;
+    typedef typename _M_rbtree::const_pointer        const_pointer;
+    typedef typename _M_rbtree::link_type            link_type;
+    typedef typename _M_rbtree::difference_type      difference_type;
+    typedef typename _M_rbtree::reference            reference;
+    typedef typename _M_rbtree::const_reference      const_reference;
+
+    typedef EqualKey                        key_equal;
+    typedef ExtractKey                      key_extr;
+
+    RB_Tree_iterator(const link_type& x) : _M_next(x), sta(1, _M_rbtree::NIL) {
+        link_type cur = _M_next;
+        while (cur != _M_rbtree::NIL) {
+            sta.push_back(cur);
+            cur = cur->lchild;
+        }
+        _M_node = sta.back();
+        sta.pop_back();
+        _M_next = _M_node->rchild;
+    }
+    RB_Tree_iterator(const RB_Tree_iterator& rhs)
+        : _M_next(rhs._M_next), _M_node(rhs._M_node) {}
+    void increment() {
+        link_type cur = _M_next;
+        while (cur != _M_rbtree::NIL) {
+            sta.push_back(cur);
+            cur = cur->lchild;
+        }
+        _M_node = sta.back();
+        sta.pop_back();
+        _M_next = _M_node->rchild;
+    }
+
+    reference operator*(){return _M_node->value;}
+    pointer operator->(){return &(operator*());}
+    
+    iterator operator++(){
+        this->increment();
+        return *this;
+    }
+    iterator operator++(int) {
+        iterator tmp(*this);
+        ++*this;
+        return tmp;
+    }
+
+    bool operator==(const iterator& it) {
+        return this->_M_node == it._M_node;
+    }
+    bool operator!=(const iterator& it) {
+        return this->_M_node != it._M_node;
+    }
+    void swap(RB_Tree_iterator& rhs) {
+        using feiger::swap;
+        swap(_M_node, rhs._M_node);
+        swap(_M_next, rhs._M_next);
+    }
+private:
+    link_type   _M_node;
+    link_type   _M_next;
+    vector<link_type> sta;
+};
+
+// 红黑树的实现；
+template<class Key, class Value, class ExtractKey = identify<Key>, class EqualKey = equal_to<Key>,
+        class Alloc = simple_alloc<TreeNode<Value>> >
+class RB_Tree : protected RB_Tree_Alloc<Value, Alloc>  {
+protected:
+    friend class RB_Tree_iterator<Key, Value, ExtractKey, EqualKey, Alloc>;
+public:
+    enum color{red = 0, black = 1, dblack = 2};
+    typedef Key                         key_type;
+    typedef Value                       value_type;
+    typedef size_t                      size_type;
+    typedef ptrdiff_t                   difference_type;
+    typedef value_type*                 pointer;
+    typedef const value_type            const_pointer;
+    typedef value_type&                 reference;
+    typedef const value_type            const_reference;
+    typedef RB_Tree_Alloc<Value, Alloc> Base;
+    typedef TreeNode<Value>*            link_type;
+    typedef const link_type             const_link;
+
+    typedef EqualKey                    key_equal;
+    typedef RB_Tree_iterator<Key, Value, ExtractKey, EqualKey, Alloc> iterator;
+protected:
+    using Base::get_node;
+    using Base::put_node;
+private:
+    TreeNode<Value>*  root;
+    EqualKey          equals;
+    ExtractKey        get_key;
+    size_type         M_node_cnt;
+public:
+    RB_Tree() 
+        : root(NIL) , equals(EqualKey()), get_key(ExtractKey()) , M_node_cnt(0){}
+    RB_Tree(const EqualKey& cmp) 
+        : root(NIL), equals(cmp), get_key(ExtractKey()), M_node_cnt(0) {}
+    ~RB_Tree() {
+        this->clear();
+        return;
+    }
+    iterator begin() {return iterator(root);}
+    iterator end() {return iterator(NIL);}
+    void insert_unique(const value_type& x); 
+    void insert_equal(const value_type& x);
+    void clear();
+    void range();
+    void inorder();
+    void erase_unique(const key_type& x); 
+    size_type size() const {return M_node_cnt;}
+    bool empty() const {return 0 == M_node_cnt;}
+    bool find(const key_type& x);
+    reference find_or_insert(const key_type& x);
+protected:
+    link_type __find_or_insert(link_type node, const key_type& x, link_type& p);
+    link_type __find(link_type node, const key_type& x);
+    link_type __insert_unique(link_type node, const value_type& x);
+    link_type __insert_equal(link_type node, const value_type& x);
+    link_type insert_maintain(link_type node);
+    link_type __erase_unique(link_type node, const key_type& x);
+    link_type erase_maintain(link_type node);
+    bool has_red_child(link_type node);
+    link_type left_rotate(link_type node);
+    link_type right_rotate(link_type node);
+    link_type predecessor(link_type node);
+    link_type successor(link_type node);
+    void __preorder(link_type node);
+    void __clear(link_type node);
+private:
+    // 配置一个值为x的节点
+    link_type new_node(const value_type& x) {
+        link_type tmp = get_node();
+        construct(tmp, x);
+        tmp->color = red;
+        tmp->lchild = NIL;
+        tmp->rchild = NIL;
+        ++M_node_cnt;
+        return tmp;
+    }
+    // 释放一个节点;
+    void delete_node(link_type p) {
+        destroy(p);
+        put_node(p);
+        --M_node_cnt;
+        return ;
+    }
+    
+    static TreeNode<Value> __NIL;
+    static TreeNode<Value>* NIL;
+};
+
+// 定义类属性共用一个NIL指针替代 nullptr指针;
+template<class Key, class Value, class Extr, class Eq,  class Alloc>
+TreeNode<Value> RB_Tree<Key, Value, Extr, Eq, Alloc>::__NIL(Value(), black, &(__NIL), &(__NIL));
+// NIL叶子节点颜色全部为黑色;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+TreeNode<Value>* RB_Tree<Key, Value,Extr, Eq, Alloc>::NIL = &__NIL;
+
+// 向红黑树中插入一个元素;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::insert_unique(const value_type& x) {
+    this->root = __insert_unique(root, x);
+    root->color = black;
+    return ;
+}
+
+
+// 搜寻或者插入元素;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::reference
+RB_Tree<Key, Value, Extr, Eq, Alloc>::find_or_insert(const key_type& x) {
+    link_type result;
+    root = __find_or_insert(root, x, result);
+    root->color = black;
+    return (result->value);
+}
+
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::__find_or_insert(link_type node, const key_type& x, link_type& result) {
+    if (node == NIL) {
+        result = new_node(Value());
+        return result;
+    }
+    if (equals(x, get_key(node->value)) ) {
+        result = node;
+        return node;
+    }
+    else if (get_key(node->value) < x ) {
+        node->rchild = __find_or_insert(node->rchild, x, result);
+    }
+    else {
+        node->lchild = __find_or_insert(node->lchild, x, result);
+    }
+    return insert_maintain(node);
+}
+
+// 从红黑树中查找元素;
+template <class Key, class Value, class Extr, class Eq, class Alloc>
+bool RB_Tree<Key, Value, Extr, Eq, Alloc>::find(const key_type& x) {
+    link_type result = __find(root, x);
+    return result != NIL;
+}
+
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::__find(link_type node, const key_type& x) {
+    if (node == NIL) return NIL;
+    if (equals(get_key(node->value), x) ) {
+        return node;
+    }
+    else if (get_key(node->value) < x) {
+        return __find(node->rchild, x);
+    } else {
+        return __find(node->lchild, x);
+    }
+}
+
+// 封装一成插入函数;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::__insert_unique(link_type node, const value_type& x) {
+    if (node == NIL) return new_node(x);
+    if (equals(get_key(x), get_key(node->value)) ) return node;
+    else if (get_key(x) < get_key(node->value)) {
+        node->lchild = __insert_unique(node->lchild, x);
+    } else {
+        node->rchild = __insert_unique(node->rchild, x);
+    }
+    return insert_maintain(node);
+}
+
+// 可重复性插入
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::insert_equal(const value_type& x) {
+    this->root = __insert_equal(root, x);
+    root->color = black;
+    return ;
+}
+
+// 左孩子key小于当前node->key, 右孩子大于等于当前key;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::__insert_equal(link_type node, const value_type& x) {
+    if (node == NIL) return new_node(x);
+    if (equals(get_key(node->value), get_key(x))) {
+        link_type tmp = new_node(x);
+        tmp->rchild = node->rchild;
+        node->rchild = tmp;
+    } else if (get_key(node->value) < get_key(x) ) {
+        node->rchild = __insert_equal(node->rchild, x);
+    } else {
+        node->lchild = __insert_equal(node->lchild, x);
+    }
+    return insert_maintain(node);
+}
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+inline
+bool RB_Tree<Key, Value, Extr, Eq, Alloc>::has_red_child(link_type node) {
+    return node->lchild->color == red || node->rchild->color == red;
+}
+
+// 左旋及右旋的封装;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::left_rotate(link_type node) {
+    link_type tmp = node->rchild;
+    node->rchild = tmp->lchild;
+    tmp->lchild = node;
+    return tmp;
+}
+
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::right_rotate(link_type node) {
+    link_type tmp = node->lchild;
+    node->lchild = tmp->rchild;
+    tmp->rchild = node;
+    return tmp;
+}
+
+// 前驱及后继节点的查找;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::predecessor(link_type node) {
+    link_type tmp = node->lchild;
+    while (tmp->rchild != NIL) tmp = tmp->rchild;
+    return tmp;
+}
+
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::successor(link_type node) {
+    link_type tmp = node->rchild;
+    while (tmp->lchild != NIL) tmp = tmp->lchild;
+    return tmp;
+}
+
+
+/* 红黑树删除节点，维护步骤,站在父节点
+1、左右孩子没有双重黑，直接返回
+2、左右孩子有红节点
+   2.1、左孩子红，对父大右旋，交换新旧父节点颜色，对新右孩子递归调整(新右孩子一定没有红孩子)
+   2.2、右孩子红，对父大左旋------，后续一样
+---此时左右没有红孩子
+3、左孩子为黑，右孩子双重黑，且左孩子没有红孩子 或者 右孩子为黑，且右孩子没有红孩子
+   此时将两个孩子减去一重黑，(黑变成红，双重黑变成黑)
+4、左孩子为黑，且左孩子有红孩子
+   4.1、当左的左不为红，对左孩子大左旋，交换新旧左孩子的颜色，此时左的左为红
+        当左的左为红，此时对夫节点大右旋，此时新的父节点颜色为旧的父节点颜色，左右孩子全
+   4.2、右孩子为黑，且右孩子右红孩子  与4.1恰好相反
+ */
+
+
+
+// 红黑树删除调整, 删除调整的目的干掉双重黑,站在父节点视角;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::erase_maintain(link_type node) {
+    // 当没有双重黑节点时;
+    if (node->lchild->color != dblack && node->rchild->color != dblack) return node;
+    // 下面都是存在双重黑的情况, 当双重黑的兄弟为红色时;
+    if (has_red_child(node)) {
+        bool flg = false;
+        node->color = red;
+        if (node->lchild->color == red) {
+            flg = true;
+            node = right_rotate(node);
+        } else {
+            node = left_rotate(node);
+        }
+        node->color = black;
+        if (flg) { // 此时dblck节点下沉到了右边, 递归到右边调整;
+            node->rchild = erase_maintain(node->rchild);
+        } else {
+            node->lchild = erase_maintain(node->lchild);
+        }
+        return node;
+    }
+    // 当dblack的兄弟节点为黑色的情况
+    if ((node->lchild->color == black && !has_red_child(node->lchild)) ||
+        (node->rchild->color == black && !has_red_child(node->rchild)) )
+    {  // 当黑色兄弟下面没有红色节点, 进行黑色上浮操作;
+        node->color += 1;
+        node->lchild->color -= 1;
+        node->rchild->color -= 1;
+        return node; // 交给上面继续调整;
+    }
+    if (node->lchild->color == dblack) {
+        node->lchild->color = black;
+        if (node->rchild->rchild->color != red) { // RL
+            node->rchild->color = red;
+            node->rchild = right_rotate(node->rchild);
+            node->rchild->color = black;
+        } // RR
+        node = left_rotate(node);
+        node->color = node->lchild->color;
+    } else {
+        node->rchild->color = black;
+        if (node->lchild->lchild->color != red) { // LR
+            node->lchild->color = red;
+            node->lchild = left_rotate(node->lchild);
+            node->lchild->color = black;
+        }
+        node = right_rotate(node);
+        node->color = node->rchild->color;
+    } // 新根颜色改原根, 左右孩子全黑;
+    node->lchild->color = node->rchild->color = black;
+    return node;
+}
+
+// 红黑树删除操作;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::erase_unique(const key_type& x) {
+    this->root = __erase_unique(root, x);
+    root->color = black;
+    return ;
+}
+
+// 红黑树删除操作;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::__erase_unique(link_type node, const key_type& x) {
+    if (node == NIL) return NIL;
+    if (equals(x, get_key(node->value)) ) {
+        // 当删除节点度为0 或者 为1;
+        if (node->lchild == NIL || node->rchild == NIL) {
+            link_type tmp = (node->lchild == NIL ? node->rchild : node->lchild);
+            tmp->color += node->color; // 将删除节点的颜色加到其子节点;以一抵三;
+            delete_node(node);
+            return tmp;
+        } else {
+            link_type tmp = predecessor(node);
+            link_type rep_node = new_node(tmp->value);
+            rep_node->lchild = node->lchild;
+            rep_node->rchild = node->rchild;
+            rep_node->color = node->color;
+            delete_node(node);
+            //node->value = tmp->value; 有点value对象可能没有赋值运算,利用构造函数重新分配一个节点;
+            rep_node->lchild = __erase_unique(rep_node->lchild, get_key(tmp->value));
+            return rep_node;
+        }
+    } 
+    else if (x < get_key(node->value)) {
+        node->lchild = __erase_unique(node->lchild, x);
+    } else {
+        node->rchild = __erase_unique(node->rchild, x);
+    }
+    return erase_maintain(node);
+}
+
+/*
+插入调整，站在祖父节点，目的消除双红
+1、没有红孩子，直接返回
+2、左右都为红孩子，且左右的孩子有红孩子(冲突)，将父节点变红，左右变黑
+3、当左为红且左没有红孩子  或者右为红且右没有红孩子，直接返回
+4、当左为红，且左的右为红，RL， 此时对左进行大左旋，变成RR
+   当左为红，且左的左为红，RR， 此时对根进行大右旋，然后将父节点变红，左右孩子变黑，  红色上浮
+   ----
+   右边的操作 LR,LL， 刚好相反
+
+ */
+
+
+
+
+// 插入调整操作, 祖父视角, 并且目标消除双红;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+typename RB_Tree<Key, Value, Extr, Eq, Alloc>::link_type
+RB_Tree<Key, Value, Extr, Eq, Alloc>::insert_maintain(link_type node) {
+    if(!has_red_child(node)) return node;
+    if (node->lchild->color == red && node->rchild->color == red) {
+        // 当孩子都是黑色直接返回;
+        if (!has_red_child(node->lchild) && !has_red_child(node->rchild)) 
+            return node;
+        // 否则进行红色上浮;
+        node->color = red;
+        node->lchild->color = node->rchild->color = black;
+        return node;
+    } 
+    // 当有一个红色和一个黑色孩子时;
+    if (node->lchild->color == red) {
+        if (!has_red_child(node->lchild)) return node;
+        // LR 时
+        if (node->lchild->rchild->color == red) {
+            node->lchild = left_rotate(node->lchild);
+        } // LL
+        node = right_rotate(node);
+    } else { // RL
+        if (!has_red_child(node->rchild)) return node;
+        if (node->rchild->lchild->color == red) {
+            node->rchild = right_rotate(node->rchild);
+        } //RR
+        node = left_rotate(node);
+    }
+    // 进行红色上浮操作;
+    node->color = red;
+    node->lchild->color = black;
+    node->rchild->color = black;
+    return node;
+}
+
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::range() {
+    __preorder(root);
+    return ;
+}
+
+// 前序遍历扫描一遍RB_Tree;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::__preorder(link_type node) {
+    if (node == NIL) return;
+    printf("%d %d %d %d\n", node->val, node->color, node->left->val, node->right->val);
+    __preorder(node->lchild);
+    __preorder(node->rchild);
+}
+
+// 中序遍历扫描一遍RB_Tree;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::inorder() {
+    link_type cur = root;
+    std::cerr << "{ ";
+    while (cur != NIL) {
+        if (cur->lchild == NIL) {
+            std::cerr << get_key(cur->value) << ", ";
+            cur = cur->rchild;
+        }
+        else {
+            link_type tmp = cur->lchild;
+            while (tmp->rchild != NIL && tmp->rchild != cur) {
+                tmp = tmp->rchild;
+            }
+            if (tmp->rchild == NIL) {
+                tmp->rchild = cur;
+                cur = cur->lchild;
+            } else {
+                tmp->rchild = NIL;
+                std::cerr << get_key(cur->value) << ", ";
+                cur = cur->rchild;
+            }
+        }
+    }
+    std::cerr << " }";
+    return ;
+}
+
+// 清除所有节点;
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::clear() {
+    __clear(this->root);
+    root = NIL;
+    return ;
+}
+
+template<class Key, class Value,class Extr, class Eq, class Alloc>
+void RB_Tree<Key, Value, Extr, Eq, Alloc>::__clear(link_type x) {
+    if (x == NIL) return;
+    __clear(x->lchild);
+    __clear(x->rchild);
+    delete_node(x);
+    return ;
+}
+
+
+#endif

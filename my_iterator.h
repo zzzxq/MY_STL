@@ -8,6 +8,9 @@
 #ifndef _MY_ITERATOR_H
 #define _MY_ITERATOR_H
 
+#include "./my_construct.h"
+
+
 
 //第一部分   iterator_traits
 //根据迭代器的类型，选取不同的处理方式
@@ -37,7 +40,7 @@ struct iterator_traits {
     typedef typename Iterator::value_type          value_type;
     typedef typename Iterator::difference_type     difference_type;
     typedef typename Iterator::pointer             pointer;
-    typedef typename iterator::reference           reference;
+    typedef typename Iterator::reference           reference;
 };
 
 //原生指针的偏特化版
@@ -83,9 +86,9 @@ value_type(const Iterator&) {
 
 //使用distence函数
 template<class InputIterator>
-inline iterator_traits<InputIterator>::difference_type
+inline typename iterator_traits<InputIterator>::difference_type
 __distance(InputIterator first, InputIterator last, input_iterator_tag) {
-    iterator_traits<InputIterator>::difference_type n = 0;
+    typename iterator_traits<InputIterator>::difference_type n = 0;
     while (first != last) {
         ++first; ++n;
     }
@@ -136,7 +139,7 @@ void __advance(BidirectionalIterator& first, Distance n, bidirectional_iterator_
 
 template <class RandomAccessIterator, class Distance>
 inline
-void __advance(RandomAccessIterator& first, Distance random_access_iterator_tag) {
+void __advance(RandomAccessIterator& first, Distance n) {
     while (n--){
         ++first;
     }
@@ -153,11 +156,11 @@ void advance(InputIterator& first,Distance distance) {
 //第二部分  type_traits 方式
 //类型萃取，根据是否是pod，有无构造函数，析构函数 来选取处理数据的方式
 
-struct __true_type{}
-struct __false_type{}
+struct __true_type{};
+struct __false_type{};
 
-template<calss type>
-struct __type_trait {
+template<class type>
+struct __type_traits {
     typedef __false_type has_trivial_default_constructor;
     typedef __false_type has_trivial_copy_constructor;
     typedef __false_type has_trivial_assignment_operator;
@@ -264,30 +267,6 @@ struct __type_traits<T*>{
     typedef __true_type has_trivial_destructor;
     typedef __true_type is_POD_type;
 };
-
-template <class ForwardIterator, class Size, class T, class T1>
-inline ForwardIterator __uninitialized_fill_n(ForwardIterator first, Size n,
-                                              const T& x, T1*) {
-  typedef typename __type_traits<T1>::is_POD_type is_POD;  //萃取出POD类型
-  return __uninitialized_fill_n_aux(first, n, x, is_POD());
-                                    
-}
-template <class ForwardIterator, class Size, class T>
-inline ForwardIterator __uninitialized_fill_n_aux(ForwardIterator first, Size n,
-                           const T& x, __true_type) {   //直接调用赋值函数
-  return fill_n(first, n, x);
-}
-
-template <class ForwardIterator, class Size, class T>
-ForwardIterator
-__uninitialized_fill_n_aux(ForwardIterator first, Size n,
-                           const T& x, __false_type) {
-  ForwardIterator cur = first;
-  __STL_TRY {
-    for ( ; n > 0; --n, ++cur)
-      construct(&*cur, x); //调用构造函数
-    return cur;
-  }
 
 
 #endif

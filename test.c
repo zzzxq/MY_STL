@@ -6,18 +6,20 @@
  ************************************************************************/
 
 #include<stdio.h>
-#include"./my_shard_ptr.h"
 #include<iostream>
+
+using std::cin;
+using std::cout;
+using std::endl;
 
 #define BEGIN(x) namespace x {
 #define END(x) }
 
+#include"./my_shard_ptr.h"
 
 BEGIN(shared_ptr_test)
 
 
-using std::cout;
-using std::endl;
 
 
 class A {
@@ -63,8 +65,28 @@ int main() {
 
 END(my_pair)
 
+
+BEGIN(my_vector)
+
+#include"./my_vector.h"
+
+
+
+int main() {
+    vector<int> arr;
+    arr.push_back(1);
+    cout << arr.capacity() << endl;
+    arr.push_back(2);
+    cout << arr.capacity() << endl;
+    cout << &arr[0] << " " << &arr[1] << endl;
+    return 0;
+}
+
+END(my_vector)
+
 int main() {
     //shared_ptr_test::main();
-    my_pair::main();
+    //my_pair::main();
+    my_vector::main();
     return 0;
 }

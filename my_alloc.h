@@ -183,8 +183,8 @@ __default_alloc_template<threads, inst>::free_list[_NFREELISTS] =
 {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, };
 
 
-typedef __default_alloc_template<true, 0> _alloc;
-typedef __default_alloc_template<false, 0> _single_client_alloc;
+typedef __default_alloc_template<true, 0> alloc;
+typedef __default_alloc_template<false, 0> single_client_alloc;
 
 //当free_list没有可用区块，调用refill，重新填充空间
 //新的空间取自内存池(通过chunk_alloc完成)
@@ -251,7 +251,7 @@ char *__default_alloc_template<thread, inst>::chunk_alloc(size_t size, int &nobj
                 my_free_list = free_list + FREELIST_INDEX(i);
                 p = *my_free_list;
                 if (0 != p) { //还有多的
-                    *my_free_list = p->next;
+                    *my_free_list = p->free_list_link;
                     start_free = (char*)p; 
                     end_free = start_free + i;  //修改头和尾指针
                     return chunk_alloc(size, nobjs);

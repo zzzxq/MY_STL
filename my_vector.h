@@ -8,6 +8,9 @@
 #ifndef _MY_VECTOR_H
 #define _MY_VECTOR_H
 
+#include "./my_alloc.h"
+#include "./my_construct.h"
+#include "./my_algobase.h"
 //实现动态数组vector
 template<class T, class Alloc = alloc>
 class vector {
@@ -175,7 +178,7 @@ void vector<T, Alloc>::insert_aux(iterator pos, const T& x) {
         const size_type old_size = size();
         const size_type len = old_size != 0 ? old_size * 2 : 1;  //双倍扩容
 
-        iterator new_start = data_allocatetor::allocate(len);
+        iterator new_start = data_allocator::allocate(len);
         iterator new_finish = new_start;
         try {
             new_finish = copy(start, pos, new_start);
@@ -185,7 +188,7 @@ void vector<T, Alloc>::insert_aux(iterator pos, const T& x) {
         }
         catch(...) {
             destroy(new_start, new_finish);
-            data_allocatetor::deallocate(new_start, len);
+            data_allocator::deallocate(new_start, len);
             throw;
         }
         destroy(begin(), end());
@@ -222,7 +225,7 @@ void vector<T, Alloc>::insert(iterator pos, size_type n, const T& x) {
         const size_type old_size = size();
         const size_type len = old_size + std::max(old_size, n);
 
-        iterator new_start = data_allocatetor::allocate(len);
+        iterator new_start = data_allocator::allocate(len);
         iterator new_finish = new_start;
 
         try{
@@ -232,7 +235,7 @@ void vector<T, Alloc>::insert(iterator pos, size_type n, const T& x) {
         }
         catch(...){
             destroy(new_start, new_finish);
-            data_allocatetor::deallocate(new_start, len);
+            data_allocator::deallocate(new_start, len);
             throw;
         }
         destroy(start, finish);

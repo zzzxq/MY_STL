@@ -8,9 +8,10 @@
 #ifndef _MY_CONSTRUCT_H
 #define _MY_CONSTRUCT_H
 
+#include "./my_iterator.h"
 
 template<class T1, class T2>
-inline void construct(T1 *p, cosnt T2& value) {
+inline void construct(T1 *p, const T2& value) {
     new((void*)p) T1(value);
 }
 
@@ -25,7 +26,7 @@ inline void destroy(Tp *p) {
 }
 //非pod类型，需要析构函数
 template<class ForwardIterator>
-void destroy_aux(ForwardIterator first, ForwardIterator last, false_type) {
+void destroy_aux(ForwardIterator first, ForwardIterator last, __false_type) {
     for (; first != last; ++first) {
         destroy(&*first);
     }
@@ -33,19 +34,19 @@ void destroy_aux(ForwardIterator first, ForwardIterator last, false_type) {
 
 //对于pod类型，不需要析构函数
 template<class ForwardIterator>
-void destroy_aux(ForwardIterator first, ForwardIterator last, true_type) {}
+void destroy_aux(ForwardIterator first, ForwardIterator last, __true_type) {}
 
 
 template<class ForwardIterator, class Tp>
 inline void destroy(ForwardIterator first, ForwardIterator last, Tp*) {
-    typedef typename type_traits<Tp>::has_trivial_destructor Trivial_destructor;
+    typedef typename __type_traits<Tp>::has_trivial_destructor Trivial_destructor;
     //类型萃取
     destroy_aux(first, last, Trivial_destructor());
 }
 
 template<class ForwardIterator>
-inline void Destroy(ForwardIterator first, ForwardIterator last) {
-    destroy(first, last, VALUE_TYPE(first)); //类型萃取
+inline void destroy(ForwardIterator first, ForwardIterator last) {
+    destroy(first, last, value_type(first)); //类型萃取
 }
 
 
